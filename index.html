@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tracker Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <!-- Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #0d0d0d;
+      color: white;
+    }
+
+    .container {
+      padding: 16px;
+      max-width: 500px;
+      margin: auto;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+
+    h2, h3 {
+      margin: 0 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      margin: 6px 0;
+      font-size: 14px;
+    }
+
+    input[type="checkbox"] {
+      transform: scale(1.2);
+    }
+
+    .progress {
+      height: 8px;
+      background: #333;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .bar {
+      height: 8px;
+      background: #4caf50;
+      width: 0%;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 8px;
+      border: none;
+      border-radius: 12px;
+      background: #2c2c2c;
+      color: white;
+      font-size: 14px;
+    }
+
+    button.primary {
+      background: #4caf50;
+    }
+
+    #timer {
+      text-align: center;
+      font-size: 28px;
+      margin-top: 10px;
+    }
+
+    canvas {
+      background: white;
+      border-radius: 10px;
+    }
+
+    .stats {
+      text-align: center;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="card">
+    <h2><span class="material-icons">calendar_today</span> Day <span id="day"></span></h2>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+    <div class="stats">
+      Score: <span id="score">0</span>% | Streak: <span id="streak">0</span>
+    </div>
+  </div>
+
+  <div class="card" id="habits"></div>
+
+  <div class="card">
+    <h3><span class="material-icons">timer</span> Pomodoro</h3>
+    <button onclick="startTimer()">Start</button>
+    <button onclick="pauseTimer()">Pause</button>
+    <button onclick="resetTimer()">Reset</button>
+    <div id="timer">25:00</div>
+  </div>
+
+  <div class="card">
+    <button class="primary" onclick="save()">Save Day</button>
+  </div>
+
+  <div class="card">
+    <h3><span class="material-icons">show_chart</span> Progress</h3>
+    <canvas id="chart"></canvas>
+  </div>
+
+</div>
+
+<script>
+
+// ---------- HABITS ----------
+const habitGroups = {
+  "Core": ["Rehab","Study","Music"],
+  "Care": ["Skincare","Dental AM","Dental PM"],
+  "Growth": ["Skill","Reading"],
+  "Work": ["P1","P2","P3","P4","P5","P6","P7","P8"],
+  "Body": ["Workout"],
+  "Discipline": ["No Scroll"]
+};
+
+const habitNames = Object.values(habitGroups).flat();
+const container = document.getElementById("habits");
+
+// Render grouped UI
+Object.keys(habitGroups).forEach(group=>{
+  container.innerHTML += `<h3>${group}</h3>`;
+  habitGroups[group].forEach((h,i)=>{
+    let id = h.startsWith("P") ? `p${h.slice(1)}` : `h${habitNames.indexOf(h)}`;
+    container.innerHTML += `<label>${h}<input type="checkbox" id="${id}"></label>`;
+  });
+});
+
+// ---------- STATE ----------
+let day = +localStorage.getItem("day") || 1;
+let streak = +localStorage.getItem("streak") || 0;
+
+document.getElementById("day").innerText = day;
+document.getElementById("streak").innerText = streak;
+
+// ---------- LOAD ----------
+function loadDay(){
+  let data = JSON.parse(localStorage.getItem("day"+day)) || [];
+  habitNames.forEach((_,i)=>{
+    let el = document.getElementById("h"+i) || document.getElementById("p"+(i-7));
+    if(el) el.checked = data[i] || false;
+  });
+  calc();
+}
+loadDay();
+
+// ---------- SCORE ----------
+function calc(){
+  let done = 0;
+
+  habitNames.forEach((_,i)=>{
+    let el = document.getElementById("h"+i) || document.getElementById("p"+(i-7));
+    if(el && el.checked) done++;
+  });
+
+  let score = Math.round(done / habitNames.length * 100);
+  document.getElementById("score").innerText = score;
+  document.getElementById("bar").style.width = score + "%";
+
+  return score;
+}
+
+document.querySelectorAll("input").forEach(el=>{
+  el.addEventListener("change", calc);
+});
+
+// ---------- SAVE ----------
+function save(){
+  let data = [];
+
+  habitNames.forEach((_,i)=>{
+    let el = document.getElementById("h"+i) || document.getElementById("p"+(i-7));
+    data.push(el ? el.checked : false);
+  });
+
+  localStorage.setItem("day"+day, JSON.stringify(data));
+
+  let score = calc();
+  if(score >= 70) streak++; else streak = 0;
+
+  localStorage.setItem("streak", streak);
+  localStorage.setItem("day", ++day);
+
+  alert("Saved");
+  location.reload();
+}
+
+// ---------- AUTO SAVE ----------
+function autoSaveDay(){
+  let data = [];
+  habitNames.forEach((_,i)=>{
+    let el = document.getElementById("h"+i) || document.getElementById("p"+(i-7));
+    data.push(el ? el.checked : false);
+  });
+  localStorage.setItem("day"+day, JSON.stringify(data));
+}
+
+// ---------- AUTO LOG ----------
+function logPomodoro(){
+  for(let i=1;i<=8;i++){
+    let box = document.getElementById("p"+i);
+    if(box && !box.checked){
+      box.checked = true;
+      break;
+    }
+  }
+  calc();
+  autoSaveDay();
+}
+
+// ---------- TIMER ----------
+let defaultTime = 1500;
+let time = defaultTime;
+let interval = null;
+
+function updateDisplay(){
+  let m = Math.floor(time/60);
+  let s = time%60;
+  document.getElementById("timer").innerText =
+    `${m}:${s<10?"0":""}${s}`;
+}
+
+function startTimer(){
+  if(interval) return;
+
+  interval = setInterval(()=>{
+    if(time <= 0){
+      clearInterval(interval);
+      interval = null;
+      alert("Pomodoro Done");
+      logPomodoro();
+      return;
+    }
+    time--;
+    updateDisplay();
+  },1000);
+}
+
+function pauseTimer(){
+  clearInterval(interval);
+  interval = null;
+}
+
+function resetTimer(){
+  clearInterval(interval);
+  interval = null;
+  time = defaultTime;
+  updateDisplay();
+}
+
+updateDisplay();
+
+// ---------- CHART ----------
+function loadChart(){
+  let scores=[];
+
+  for(let i=1;i<=90;i++){
+    let d = JSON.parse(localStorage.getItem("day"+i));
+    if(d){
+      let done = d.filter(x=>x).length;
+      scores.push(done / habitNames.length * 100);
+    } else scores.push(null);
+  }
+
+  new Chart(document.getElementById("chart"),{
+    type:"line",
+    data:{
+      labels:[...Array(90).keys()].map(x=>x+1),
+      datasets:[{data:scores}]
+    }
+  });
+}
+
+loadChart();
+
+</script>
+
+</body>
+</html>
